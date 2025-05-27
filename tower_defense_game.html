@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tower Defense - เกมป้อมปราการ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        .game-area {
+            flex: 1;
+            position: relative;
+            background: #2c3e50;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            background: #34495e;
+            cursor: crosshair;
+        }
+
+        .ui-panel {
+            width: 280px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .tower-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tower-btn {
+            padding: 15px 10px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .tower-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .tower-btn.selected {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+        }
+
+        .stats {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats div {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .control-btn {
+            padding: 12px;
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+        }
+
+        .control-btn:disabled {
+            background: #7f8c8d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .mode-selector, .map-selector {
+            margin-bottom: 15px;
+        }
+
+        .mode-selector select, .map-selector select {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: none;
+            background: #34495e;
+            color: white;
+        }
+
+        .wave-info {
+            background: rgba(231, 76, 60, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 30px;
+            border-radius: 15px;
+            text-align: center;
+            display: none;
+            z-index: 1000;
+        }
+
+        .game-over h2 {
+            color: #e74c3c;
+            margin-bottom: 20px;
+        }
+
+        .game-over button {
+            padding: 15px 30px;
+            background: #3498db;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+        }
+
+        .tower-info {
+            font-size: 11px;
+            margin-top: 5px;
+            opacity: 0.8;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #e74c3c, #c0392b);
+            transition: width 0.3s;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-area">
+            <canvas id="gameCanvas"></canvas>
+        </div>
+        
+        <div class="ui-panel">
+            <div class="stats">
+                <div><span>💰 เงิน:</span> <span id="money">500</span></div>
+                <div><span>❤️ ชีวิต:</span> <span id="lives">20</span></div>
+                <div><span>🌾 ฟาร์ม:</span> <span id="farms">0</span></div>
+                <div><span>🏆 คะแนน:</span> <span id="score">0</span></div>
+            </div>
+
+            <div class="wave-info">
+                <div>เวฟ <span id="currentWave">1</span>/40</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="waveProgress"></div>
+                </div>
+                <div id="enemiesLeft">ศัตรู: 0</div>
+            </div>
+
+            <div class="mode-selector">
+                <label>โหมดเกม:</label>
+                <select id="gameMode">
+                    <option value="normal">ปกติ</option>
+                    <option value="endless">ไม่มีที่สิ้นสุด</option>
+                </select>
+            </div>
+
+            <div class="map-selector">
+                <label>แมพ:</label>
+                <select id="mapSelect">
+                    <option value="0">แมพ 1 - ทุ่งหญ้า</option>
+                    <option value="1">แมพ 2 - ป่าไผ่</option>
+                    <option value="2">แมพ 3 - ภูเขาหิน</option>
+                </select>
+            </div>
+
+            <div class="tower-grid">
+                <button class="tower-btn" data-tower="basic">
+                    🏹 ธนู<br>
+                    <div class="tower-info">💰50 | ⚡1 | 🎯80</div>
+                </button>
+                <button class="tower-btn" data-tower="cannon">
+                    💣 ปืนใหญ่<br>
+                    <div class="tower-info">💰100 | ⚡3 | 🎯60</div>
+                </button>
+                <button class="tower-btn" data-tower="ice">
+                    ❄️ น้ำแข็ง<br>
+                    <div class="tower-info">💰80 | ⚡1 | 🐌50%</div>
+                </button>
+                <button class="tower-btn" data-tower="fire">
+                    🔥 ไฟ<br>
+                    <div class="tower-info">💰120 | ⚡2 | 🔥DOT</div>
+                </button>
+                <button class="tower-btn" data-tower="laser">
+                    ⚡ เลเซอร์<br>
+                    <div class="tower-info">💰200 | ⚡5 | 🎯100</div>
+                </button>
+                <button class="tower-btn" data-tower="poison">
+                    ☠️ พิษ<br>
+                    <div class="tower-info">💰150 | ⚡1 | 🐌+☠️</div>
+                </button>
+                <button class="tower-btn" data-tower="magic">
+                    🔮 เวทย์<br>
+                    <div class="tower-info">💰300 | ⚡8 | 👻เฉพาะ</div>
+                </button>
+                <button class="tower-btn" data-tower="farm">
+                    🌾 ฟาร์ม<br>
+                    <div class="tower-info">💰60 | 💰+2/s</div>
+                </button>
+            </div>
+
+            <div class="controls">
+                <button class="control-btn" id="startWave">เริ่มเวฟ</button>
+                <button class="control-btn" id="pauseGame">หยุดชั่วคราว</button>
+                <button class="control-btn" id="speedUp">เร่งความเร็ว</button>
+                <button class="control-btn" id="resetGame">เริ่มใหม่</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="game-over" id="gameOver">
+        <h2>เกมจบแล้ว!</h2>
+        <p>คะแนนของคุณ: <span id="finalScore">0</span></p>
+        <p>เวฟที่ผ่าน: <span id="finalWave">0</span></p>
+        <button onclick="resetGame()">เล่นใหม่</button>
+    </div>
+
+    <script>
+        // Game variables
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let gameState = {
+            money: 500,
+            lives: 20,
+            score: 0,
+            currentWave: 1,
+            gameMode: 'normal',
+            selectedMap: 0,
+            selectedTower: null,
+            isPaused: false,
+            gameSpeed: 1,
+            waveInProgress: false,
+            farms: 0
+        };
+
+        // Tower types
+        const towerTypes = {
+            basic: { cost: 50, damage: 1, range: 80, speed: 1000, color: '#8B4513', name: 'ธนู' },
+            cannon: { cost: 100, damage: 3, range: 60, speed: 1500, color: '#FF4500', name: 'ปืนใหญ่', splash: true },
+            ice: { cost: 80, damage: 1, range: 70, speed: 800, color: '#00BFFF', name: 'น้ำแข็ง', slow: 0.5 },
+            fire: { cost: 120, damage: 2, range: 65, speed: 1200, color: '#FF0000', name: 'ไฟ', dot: true },
+            laser: { cost: 200, damage: 5, range: 100, speed: 500, color: '#FF00FF', name: 'เลเซอร์' },
+            poison: { cost: 150, damage: 1, range: 75, speed: 1000, color: '#800080', name: 'พิษ', poison: true, slow: 0.7 },
+            magic: { cost: 300, damage: 8, range: 90, speed: 2000, color: '#FFD700', name: 'เวทย์', antiGhost: true },
+            farm: { cost: 60, income: 2, color: '#228B22', name: 'ฟาร์ม' }
+        };
+
+        // Enemy types
+        const enemyTypes = {
+            basic: { hp: 2, speed: 1, reward: 2, color: '#FF6B6B', name: 'พื้นฐาน' },
+            fast: { hp: 1, speed: 2, reward: 3, color: '#4ECDC4', name: 'เร็ว' },
+            tank: { hp: 8, speed: 0.5, reward: 8, color: '#45B7D1', name: 'รถถัง' },
+            flying: { hp: 3, speed: 1.5, reward: 5, color: '#96CEB4', name: 'บิน', flying: true },
+            ghost: { hp: 4, speed: 1, reward: 6, color: '#FFEAA7', name: 'ผี', ghost: true },
+            boss: { hp: 20, speed: 0.3, reward: 20, color: '#FD79A8', name: 'บอส' },
+            regen: { hp: 5, speed: 0.8, reward: 7, color: '#00B894', name: 'ฟื้นฟู', regen: true },
+            shield: { hp: 6, speed: 1, reward: 8, color: '#6C5CE7', name: 'โล่', shield: true }
+        };
+
+        // Maps
+        const maps = [
+            {
+                name: 'ทุ่งหญ้า',
+                path: [
+                    {x: 0, y: 200}, {x: 150, y: 200}, {x: 150, y: 100}, 
+                    {x: 350, y: 100}, {x: 350, y: 300}, {x: 550, y: 300}, 
+                    {x: 550, y: 150}, {x: 750, y: 150}, {x: 750, y: 400}
+                ],
+                background: '#90EE90'
+            },
+            {
+                name: 'ป่าไผ่',
+                path: [
+                    {x: 0, y: 100}, {x: 200, y: 100}, {x: 200, y: 250}, 
+                    {x: 400, y: 250}, {x: 400, y: 50}, {x: 600, y: 50}, 
+                    {x: 600, y: 350}, {x: 800, y: 350}
+                ],
+                background: '#228B22'
+            },
+            {
+                name: 'ภูเขาหิน',
+                path: [
+                    {x: 0, y: 300}, {x: 100, y: 300}, {x: 100, y: 100}, 
+                    {x: 300, y: 100}, {x: 300, y: 250}, {x: 500, y: 250}, 
+                    {x: 500, y: 50}, {x: 700, y: 50}, {x: 700, y: 400}
+                ],
+                background: '#A0522D'
+            }
+        ];
+
+        let towers = [];
+        let enemies = [];
+        let projectiles = [];
+        let effects = [];
+        let currentPath = maps[0].path;
+
+        // Resize canvas
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+
+        // Initialize game
+        function initGame() {
+            resizeCanvas();
+            updateUI();
+            startGameLoop();
+            setupEventListeners();
+            
+            // Farm income
+            setInterval(() => {
+                if (!gameState.isPaused && gameState.farms > 0) {
+                    gameState.money += gameState.farms * towerTypes.farm.income;
+                    updateUI();
+                }
+            }, 1000);
+        }
+
+        // Event listeners
+        function setupEventListeners() {
+            // Tower selection
+            document.querySelectorAll('.tower-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tower-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    gameState.selectedTower = btn.dataset.tower;
+                });
+            });
+
+            // Canvas click
+            canvas.addEventListener('click', (e) => {
+                if (gameState.selectedTower) {
+                    const rect = canvas.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    placeTower(x, y);
+                }
+            });
+
+            // Controls
+            document.getElementById('startWave').addEventListener('click', startWave);
+            document.getElementById('pauseGame').addEventListener('click', togglePause);
+            document.getElementById('speedUp').addEventListener('click', toggleSpeed);
+            document.getElementById('resetGame').addEventListener('click', resetGame);
+            document.getElementById('mapSelect').addEventListener('change', changeMap);
+            document.getElementById('gameMode').addEventListener('change', changeMode);
+
+            window.addEventListener('resize', resizeCanvas);
+        }
+
+        // Place tower
+        function placeTower(x, y) {
+            const towerType = towerTypes[gameState.selectedTower];
+            
+            if (gameState.money < towerType.cost) {
+                alert('เงินไม่พอ!');
+                return;
+            }
+
+            // Check if position is valid (not on path, not too close to other towers)
+            if (!isValidTowerPosition(x, y)) {
+                alert('ไม่สามารถวางป้อมในตำแหน่งนี้ได้!');
+                return;
+            }
+
+            gameState.money -= towerType.cost;
+            
+            if (gameState.selectedTower === 'farm') {
+                gameState.farms++;
+            }
+
+            towers.push({
+                x: x,
+                y: y,
+                type: gameState.selectedTower,
+                ...towerType,
+                lastShot: 0,
+                level: 1
+            });
+
+            updateUI();
+        }
+
+        // Check valid tower position
+        function isValidTowerPosition(x, y) {
+            // Check if on path
+            for (let i = 0; i < currentPath.length - 1; i++) {
+                const start = currentPath[i];
+                const end = currentPath[i + 1];
+                const distance = distanceToLine(x, y, start.x, start.y, end.x, end.y);
+                if (distance < 30) return false;
+            }
+
+            // Check distance from other towers
+            for (let tower of towers) {
+                if (Math.hypot(tower.x - x, tower.y - y) < 40) return false;
+            }
+
+            return true;
+        }
+
+        // Distance to line
+        function distanceToLine(px, py, x1, y1, x2, y2) {
+            const dx = x2 - x1;
+            const dy = y2 - y1;
+            const length = Math.hypot(dx, dy);
+            if (length === 0) return Math.hypot(px - x1, py - y1);
+            
+            const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (length * length)));
+            const projection = { x: x1 + t * dx, y: y1 + t * dy };
+            return Math.hypot(px - projection.x, py - projection.y);
+        }
+
+        // Start wave
+        function startWave() {
+            if (gameState.waveInProgress) return;
+            
+            gameState.waveInProgress = true;
+            document.getElementById('startWave').disabled = true;
+            
+            spawnWave(gameState.currentWave);
+        }
+
+        // Spawn wave
+        function spawnWave(waveNumber) {
+            const waveData = generateWaveData(waveNumber);
+            let enemyIndex = 0;
+            
+            const spawnInterval = setInterval(() => {
+                if (enemyIndex >= waveData.enemies.length) {
+                    clearInterval(spawnInterval);
+                    return;
+                }
+                
+                const enemyType = waveData.enemies[enemyIndex];
+                spawnEnemy(enemyType);
+                enemyIndex++;
+                
+            }, waveData.spawnDelay);
+        }
+
+        // Generate wave data
+        function generateWaveData(wave) {
+            const enemies = [];
+            const baseCount = Math.floor(3 + wave * 1.5);
+            
+            // Add variety based on wave
+            for (let i = 0; i < baseCount; i++) {
+                if (wave < 5) enemies.push('basic');
+                else if (wave < 10) enemies.push(Math.random() < 0.7 ? 'basic' : 'fast');
+                else if (wave < 15) enemies.push(['basic', 'fast', 'tank'][Math.floor(Math.random() * 3)]);
+                else if (wave < 25) enemies.push(['basic', 'fast', 'tank', 'flying'][Math.floor(Math.random() * 4)]);
+                else if (wave < 35) enemies.push(['fast', 'tank', 'flying', 'ghost', 'regen'][Math.floor(Math.random() * 5)]);
+                else enemies.push(Object.keys(enemyTypes)[Math.floor(Math.random() * Object.keys(enemyTypes).length)]);
+            }
+            
+            // Add boss every 10 waves
+            if (wave % 10 === 0) {
+                for (let i = 0; i < Math.ceil(wave / 10); i++) {
+                    enemies.push('boss');
+                }
+            }
+            
+            return {
+                enemies: enemies,
+                spawnDelay: Math.max(300, 1000 - wave * 15)
+            };
+        }
+
+        // Spawn enemy
+        function spawnEnemy(type) {
+            const enemyData = enemyTypes[type];
+            const enemy = {
+                ...enemyData,
+                type: type,
+                x: currentPath[0].x,
+                y: currentPath[0].y,
+                pathIndex: 0,
+                progress: 0,
+                maxHp: enemyData.hp,
+                effects: {},
+                shieldHp: enemyData.shield ? enemyData.hp : 0
+            };
+            
+            enemies.push(enemy);
+        }
+
+        // Update game
+        function updateGame(deltaTime) {
+            if (gameState.isPaused) return;
+            
+            updateEnemies(deltaTime);
+            updateTowers(deltaTime);
+            updateProjectiles(deltaTime);
+            updateEffects(deltaTime);
+            
+            checkWaveComplete();
+            updateUI();
+        }
+
+        // Update enemies
+        function updateEnemies(deltaTime) {
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                const enemy = enemies[i];
+                
+                // Apply effects
+                let speedMultiplier = 1;
+                if (enemy.effects.slow) speedMultiplier *= enemy.effects.slow.strength;
+                if (enemy.effects.poison) {
+                    enemy.hp -= enemy.effects.poison.damage * deltaTime / 1000;
+                    enemy.effects.poison.duration -= deltaTime;
+                    if (enemy.effects.poison.duration <= 0) delete enemy.effects.poison;
+                }
+                
+                // Regeneration
+                if (enemy.regen && Math.random() < 0.01) {
+                    enemy.hp = Math.min(enemy.maxHp, enemy.hp + 1);
+                }
+                
+                // Remove slow effect
+                if (enemy.effects.slow) {
+                    enemy.effects.slow.duration -= deltaTime;
+                    if (enemy.effects.slow.duration <= 0) delete enemy.effects.slow;
+                }
+                
+                // Move enemy
+                const speed = enemy.speed * speedMultiplier * gameState.gameSpeed * deltaTime / 1000 * 30;
+                enemy.progress += speed;
+                
+                if (enemy.pathIndex < currentPath.length - 1) {
+                    const start = currentPath[enemy.pathIndex];
+                    const end = currentPath[enemy.pathIndex + 1];
+                    const segmentLength = Math.hypot(end.x - start.x, end.y - start.y);
+                    
+                    if (enemy.progress >= segmentLength) {
+                        enemy.progress -= segmentLength;
+                        enemy.pathIndex++;
+                    }
+                    
+                    if (enemy.pathIndex < currentPath.length - 1) {
+                        const currentStart = currentPath[enemy.pathIndex];
+                        const currentEnd = currentPath[enemy.pathIndex + 1];
+                        const t = enemy.progress / Math.hypot(currentEnd.x - currentStart.x, currentEnd.y - currentStart.y);
+                        enemy.x = currentStart.x + (currentEnd.x - currentStart.x) * t;
+                        enemy.y = currentStart.y + (currentEnd.y - currentStart.y) * t;
+                    }
+                } else {
+                    // Enemy reached end
+                    gameState.lives--;
+                    enemies.splice(i, 1);
+                    
+                    if (gameState.lives <= 0) {
+                        gameOver();
+                    }
+                    continue;
+                }
+                
+                // Check if enemy is dead
+                if (enemy.hp <= 0) {
+                    gameState.money += enemy.reward;
+                    gameState.score += enemy.reward * 10;
+                    enemies.splice(i, 1);
+                    
+                    // Death effect
+                    effects.push({
+                        x: enemy.x,
+                        y: enemy.y,
+                        type: 'explosion',
+                        duration: 300,
+                        maxDuration: 300
+                    });
+                }
+            }
+        }
+
+        // Update towers
+        function updateTowers(deltaTime) {
+            for (let tower of towers) {
+                if (tower.type === 'farm') continue;
+                
+                tower.lastShot += deltaTime;
+                
+                if (tower.lastShot >= tower.speed / gameState.gameSpeed) {
+                    const target = findTarget(tower);
+                    if (target) {
+                        shoot(tower, target);
+                        tower.lastShot = 0;
+                    }
+                }
+            }
+        }
+
+        // Find target
+        function findTarget(tower) {
+            let bestTarget = null;
+            let bestDistance = Infinity;
+            
+            for (let enemy of enemies) {
+                const distance = Math.hypot(enemy.x - tower.x, enemy.y - tower.y);
+                if (distance <= tower.range) {
+                    // Special targeting for magic towers
+                    if (tower.antiGhost && !enemy.ghost) continue;
+                    
+                    if (distance < bestDistance) {
+                        bestDistance = distance;
+                        bestTarget = enemy;
+                    }
+                }
+            }
+            
+            return bestTarget;
+        }
+
+        // Shoot
+        function shoot(tower, target) {
+            const projectile = {
+                x: tower.x,
+                y: tower.y,
+                targetX: target.x,
+                targetY: target.y,
+                target: target,
+                tower: tower,
+                speed: 200 * gameState.gameSpeed,
+                damage: tower.damage
+            };
+            
+            projectiles.push(projectile);
+        }
+
+        // Update projectiles
+        function updateProjectiles(deltaTime) {
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const proj = projectiles[i];
+                
+                const dx = proj.targetX - proj.x;
+                const dy = proj.targetY - proj.y;
+                const distance = Math.hypot(dx, dy);
+                
+                if (distance < 5) {
+                    // Hit target
+                    hitTarget(proj);
+                    projectiles.splice(i, 1);
+                } else {
+                    // Move projectile
+                    const speed = proj.speed * deltaTime / 1000;
+                    proj.x += (dx / distance) * speed;
+                    proj.y += (dy / distance) * speed;
+                }
+            }
+        }
+
+        // Hit target
+        function hitTarget(projectile) {
+            const tower = projectile.tower;
+            let target = projectile.target;
+            
+            // Check if target still exists
+            if (!enemies.includes(target)) return;
+            
+            // Apply damage
+            if (target.shieldHp > 0) {
+                target.shieldHp -= projectile.damage;
+                if (target.shieldHp < 0) {
+                    target.hp += target.shieldHp; // Overflow damage
+                    target.shieldHp = 0;
+                }
+            } else {
+                target.hp -= projectile.damage;
+            }
+            
+            // Apply effects
+            if (tower.slow) {
+                target.effects.slow = { strength: tower.slow, duration: 2000 };
+            }
+            
+            if (tower.poison) {
+                target.effects.poison = { damage: 0.5, duration: 3000 };
+            }
+            
+            if (tower.dot) {
+                target.effects.poison = { damage: 1, duration: 2000 };
+            }
+            
+            // Splash damage
+            if (tower.splash) {
+                for (let enemy of enemies) {
+                    if (enemy !== target && Math.hypot(enemy.x - target.x, enemy.y - target.y) < 40) {
+                        enemy.hp -= projectile.damage * 0.5;
+                    }
+                }
+            }
+        }
+
+        // Update effects
+        function updateEffects(deltaTime) {
+            for (let i = effects.length - 1; i >= 0; i--) {
+                const effect = effects[i];
+                effect.duration -= deltaTime;
+                if (effect.duration <= 0) {
+                    effects.splice(i, 1);
+                }
+            }
+        }
+
+        // Check wave complete
+        function checkWaveComplete() {
+            if (gameState.waveInProgress && enemies.length === 0) {
+                gameState.waveInProgress = false;
+                document.getElementById('startWave').disabled = false;
+                
+                gameState.currentWave++;
+                gameState.money += 50 + gameState.currentWave * 5; // Wave completion bonus
